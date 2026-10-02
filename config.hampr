@@ -1,0 +1,3 @@
+build=cmake --build build
+test=ctest --test-dir build
+run=./build/socket-server
