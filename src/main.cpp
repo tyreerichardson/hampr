@@ -2,6 +2,7 @@
 #include <fstream>
 #include <string>
 #include <filesystem>
+#include <cstdlib>
 
 using namespace std;
 
@@ -42,9 +43,11 @@ int main(int argc, char* argv[]) {
 				string cmd = line.substr(pos+1);
 				cout << "Command: " << command << endl;
 				cout << "Action: " << cmd << endl;
+				std::system(cmd.c_str());
 				break;	
 			}
-		}
+		}					
+
 		if(!hasAction) {
 			cout << "Error: hampr command " << command << " was not found in " << CONFIG_FILE << endl;
 			return 1;
