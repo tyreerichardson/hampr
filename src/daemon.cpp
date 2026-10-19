@@ -1,6 +1,7 @@
 #include "executor.hpp"
 #include "task_request.hpp"
 #include "config.hpp"
+#include "ipc.hpp"
 
 #include <iostream>
 #include <sys/socket.h>
@@ -50,43 +51,30 @@ int main() {
 			perror("accept failed");
 			continue;
 		}
+
 		cout << "Client connected!" << endl;
 		
-		char buffer[100]{};
-		ssize_t bytesRead =	read(clientFd, buffer, sizeof(buffer) - 1);
-		
-		string message(buffer, bytesRead);
+		string message;
+
+		if(!receiveMessage(clientFd, message)) {
+			perror("Failed to receive client message");
+			close(clientFd);
+			return 1;
+		}
 		
 		TaskRequest request = TaskRequest::deserialize(message);
 		
-		if(bytesRead < 0) {
-			perror("Read failed");
-		} else if(bytesRead == 0) {
-			cout << "Client disconnected." << endl;
-		} else {
-			cout << "Received: " << request.name << endl;
+	    std::cout << "Name: " << request.name << '\n';
+   		std::cout << "Path: " << request.projectPath << '\n';
 
-			auto task = findTask(request.projectPath, request.name);
-			if (task.has_value()) {
-			    std::cout << "Found: " << task->name << '\n';
-    			std::cout << "Command: " << task->cmd << '\n';
-			}
-			if(string(buffer) == "build") {
-				executeTask(*task);
-			}
+		string response;
 
-			string response = "QUEUED 42";
-
-			ssize_t bytesWritten = write(
-				clientFd,
-				response.c_str(),
-				response.size()
-			);
-
-			if(bytesWritten == -1) {
-				perror("Server write failed");
-			}
+		if(!sendMessage(clientFd, "Task Received")) {
+			perror("Failed to send message to client");
+			close(clientFd);
+			return 1;
 		}
+
 		close(clientFd);
 	}
 

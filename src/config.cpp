@@ -12,6 +12,8 @@ std::optional<Task> findTask(
     const std::filesystem::path& projectPath,
     const std::string& taskName
 ) {
+	std::unordered_map<std::string, Task> tasks;
+
     std::filesystem::path configPath =
         projectPath / CONFIG_FILE;
     
@@ -22,8 +24,6 @@ std::optional<Task> findTask(
         return std::nullopt;
     }
 
-    // Move your existing configuration parsing
-    // and task matching logic here.	
 	string line;
 	while(getline(config, line)) {
 		if(line.empty()) continue;
@@ -37,10 +37,21 @@ std::optional<Task> findTask(
 		action = line.substr(0,pos);
 		if(action == taskName) {
 			string cmd = line.substr(pos+1);
-			Task task = {taskName, cmd};
-			return task;
+			auto [it, inserted] = tasks.emplace(action, Task{action, cmd});
+			if (!inserted) {
+    			std::cerr << "Error: Duplicate task '" << action << "'\n";
+    			return std::nullopt;
+			}
 		}
-	}					
+	}
+
+	auto it = tasks.find(taskName);
+
+	if (it == tasks.end()) {
+    	return std::nullopt;
+	}
+
+	return it->second;					
 
 	cout << "Error: hampr command " << taskName << " was not found in " << CONFIG_FILE << endl;
 	return nullopt;

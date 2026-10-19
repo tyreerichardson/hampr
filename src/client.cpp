@@ -1,5 +1,6 @@
 #include "client.hpp"
 #include "task_request.hpp"
+#include "ipc.hpp"
 
 #include <iostream>
 #include <sys/socket.h>
@@ -23,7 +24,6 @@ bool sendCommand(const std::string& command) {
 	sockaddr_un addr{};
 	addr.sun_family = AF_UNIX;
 	strncpy(addr.sun_path, "/tmp/hampr.sock", sizeof(addr.sun_path) -1);
-//	unlink(addr.sun_path);
 	
 	int conn = ::connect(sockFd, (struct sockaddr *)&addr, sizeof(struct sockaddr_un));
 
@@ -37,28 +37,22 @@ bool sendCommand(const std::string& command) {
 
 	string message = request.serialize();
 
-	ssize_t bytesWritten = write(
-    	sockFd,
-    	message.c_str(),
-    	message.size()
-	);
-
-	char response[100]{};
-	ssize_t bytesRead = read(sockFd, response, sizeof(response) -1);
-
-	if(bytesRead < 0) {
-
-	} else if(bytesRead == 0){
-	
-	} else {
-		response[bytesRead] = '\0';
-		cout << "Server: " << response << endl;
+	if(!sendMessage(sockFd, message)) {
+		perror("Failed to send task request");
+		close(sockFd);
+		return 1;
 	}
 
-	if(bytesWritten > 0) {
-		cout << "bytes written" << endl;
+	string response;
+
+	if(!receiveMessage(sockFd, response)) {
+		perror("Failed to receive daemon response");
+		close(sockFd);
+		return 1;
 	}
-	
+
+	cout << response << endl;
+
 	close(sockFd);
 	
 	return 0;

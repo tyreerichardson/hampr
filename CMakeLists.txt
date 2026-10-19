@@ -9,6 +9,7 @@ add_executable(hampr
 	src/main.cpp
 	src/client.cpp
 	src/task_request.cpp
+	src/ipc.cpp
 )
 
 target_include_directories(hampr PRIVATE
@@ -20,6 +21,7 @@ add_executable(hamprd
 	src/executor.cpp
 	src/task_request.cpp
 	src/config.cpp
+	src/ipc.cpp
 )
 
 target_include_directories(hamprd PRIVATE
