@@ -1,5 +1,6 @@
 #include "client.hpp"
 #include "task_request.hpp"
+#include "request_type.hpp"
 #include "ipc.hpp"
 
 #include <iostream>
@@ -10,8 +11,9 @@
 
 using namespace std;
 
-bool sendCommand(const std::string& command) {
+bool sendCommand(const std::string& command, RequestType type) {
 	TaskRequest request = {
+		type,
 		command,
 		std::filesystem::current_path()
 	};

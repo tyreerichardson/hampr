@@ -1,5 +1,6 @@
 #include "client.hpp"
 #include "task.hpp"
+#include "request_type.hpp"
 
 #include <iostream>
 #include <fstream>
@@ -26,10 +27,24 @@ bool validateCLI(int argc){
 
 int main(int argc, char* argv[]) {
 	if(!validateCLI(argc)) return 1;
-	
-	queue<Task> taskQueue;
+
+	RequestType type = RequestType::Task;
 
 	string command = argv[1];
-	sendCommand(command);
+
+	if(command == "daemon") {
+		type = RequestType::DaemonControl;
+		if(argc == 3) {
+			command = argv[2];
+		} else if(argc > 3) {
+			cout << "Error: too many arguments" << endl;
+			return 1;
+		} else {
+			cout << "Error: missing action" << endl;
+			return 1;
+		}
+	}
+
+	sendCommand(command, type);	
 	return 0;
 }

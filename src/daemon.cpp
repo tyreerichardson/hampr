@@ -1,5 +1,6 @@
 #include "executor.hpp"
 #include "task_request.hpp"
+#include "request_type.hpp"
 #include "config.hpp"
 #include "ipc.hpp"
 
@@ -122,16 +123,7 @@ int main() {
 	    std::cout << "Name: " << request.name << '\n';
    		std::cout << "Path: " << request.projectPath << '\n';
 
-		std::optional<Task> task = findTask(request.projectPath, request.name);
 		
-		task->projectPath = request.projectPath;
-		if (task.has_value()) {
-			cout << "task found" << endl;
-			cout << task->name << endl;
-			cout << task->cmd << endl;
-
-		}
-
 		string response;
 
 		if(!sendMessage(clientFd, "Task Received")) {
@@ -140,17 +132,41 @@ int main() {
 			return 1;
 		}
 		
-		if(task.has_value()) {
-			{
-				std::lock_guard<std::mutex> guard(queueMutex);
-				taskQueue.push(*task);
+		if(request.type == RequestType::DaemonControl) {
+			if(request.name == "stop") {
+				sendMessage(clientFd, "Daemon shutting down");
+			    close(clientFd);
+				 break;
+    		} else {
+				cout << "Error: unsupported daemon command" << endl;
+				close(clientFd);
+				continue;
 			}
-			queueCV.notify_one();
-		}	
+		} else {
+        	std::optional<Task> task = findTask(request.projectPath, request.name);
+		
+			if(task.has_value()) {
+	        	task->projectPath = request.projectPath;
+				{
+					std::lock_guard<std::mutex> guard(queueMutex);
+					taskQueue.push(*task);
+				}
+				queueCV.notify_one();
+			}
+		}
 
 		close(clientFd);
 	}
 
+	//Shutdown logic
+    {
+       	std::lock_guard<std::mutex> guard(queueMutex);
+    	stopping = true;
+    }
+
+   	queueCV.notify_one();
+	worker.join();	
+	
 	cout << "Socket created successfully!" << endl;
 	cout << "File descriptor: " << serverFd << endl;
 
