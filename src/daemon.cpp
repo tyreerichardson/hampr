@@ -9,10 +9,21 @@
 #include <unistd.h>
 #include <cstdio>
 #include <string>
+#include <queue>
+#include <thread>
+#include <mutex>
+#include <condition_variable>
 
 using namespace std;
 
+
 int main() {
+
+    queue<Task> taskQueue;
+    std::mutex queueMutex;
+    std::condition_variable queueCV;
+    bool stopping = false;
+
     int serverFd = socket(AF_UNIX, SOCK_STREAM, 0);
 	if(serverFd == -1) {
 		cout << "socket failed to initialize" << endl;
@@ -40,17 +51,52 @@ int main() {
 		return 1;
 	}
 
+	std::thread worker([&]() {
+		while(true) {
+	        std::unique_lock<std::mutex> lock(queueMutex);
+
+        	queueCV.wait(lock, [&]() {
+            	return !taskQueue.empty() || stopping;
+        	});
+			
+			if (stopping && taskQueue.empty()) {
+            	break;
+        	}
+
+			Task task = taskQueue.front();
+			taskQueue.pop();
+			
+			lock.unlock();
+			
+			executeTask(task);
+		}
+	});
+	
 	cout << "Server listening at " << addr.sun_path << endl;
 
 	while(true) {
 		cout << "Wating for client..." << endl;
 		
 	    int clientFd = accept(serverFd, nullptr, nullptr);
-
+		
 		if(clientFd == -1) {
 			perror("accept failed");
 			continue;
 		}
+
+	    int noSigPipe = 1;
+
+        if(setsockopt(
+            	clientFd,
+            	SOL_SOCKET,
+            	SO_NOSIGPIPE,
+           		&noSigPipe,
+           		sizeof(noSigPipe)
+        	) == -1) {
+			perror("setsockopt");
+			close(clientFd);
+			continue;
+		}		
 
 		cout << "Client connected!" << endl;
 		
@@ -61,11 +107,30 @@ int main() {
 			close(clientFd);
 			return 1;
 		}
-		
+
+	
 		TaskRequest request = TaskRequest::deserialize(message);
+		
+		if(request.name.empty() || request.projectPath.empty()) {
+			if(!sendMessage(clientFd, "Task name or path is empty")) {
+				perror("Task name or path is empty");
+				close(clientFd);
+				continue;
+			}
+		}
 		
 	    std::cout << "Name: " << request.name << '\n';
    		std::cout << "Path: " << request.projectPath << '\n';
+
+		std::optional<Task> task = findTask(request.projectPath, request.name);
+		
+		task->projectPath = request.projectPath;
+		if (task.has_value()) {
+			cout << "task found" << endl;
+			cout << task->name << endl;
+			cout << task->cmd << endl;
+
+		}
 
 		string response;
 
@@ -74,6 +139,14 @@ int main() {
 			close(clientFd);
 			return 1;
 		}
+		
+		if(task.has_value()) {
+			{
+				std::lock_guard<std::mutex> guard(queueMutex);
+				taskQueue.push(*task);
+			}
+			queueCV.notify_one();
+		}	
 
 		close(clientFd);
 	}

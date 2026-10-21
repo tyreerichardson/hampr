@@ -20,7 +20,22 @@ bool sendCommand(const std::string& command) {
 	if(sockFd == -1) {
 		cout << "socket failed to initialize" << endl;
 		return 1;
+	}
+
+	int noSigPipe = 1;
+
+    if(setsockopt(
+    		sockFd,
+        	SOL_SOCKET,
+       		SO_NOSIGPIPE,
+        	&noSigPipe,
+        	sizeof(noSigPipe)
+    	) == -1) {
+		perror("setsockopt");
+		close(sockFd);
+		return 1;
 	}	
+	
 	sockaddr_un addr{};
 	addr.sun_family = AF_UNIX;
 	strncpy(addr.sun_path, "/tmp/hampr.sock", sizeof(addr.sun_path) -1);
