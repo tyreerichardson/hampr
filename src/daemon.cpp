@@ -14,6 +14,7 @@
 #include <thread>
 #include <mutex>
 #include <condition_variable>
+#include <atomic>
 
 using namespace std;
 
@@ -23,6 +24,7 @@ int main() {
     queue<Task> taskQueue;
     std::mutex queueMutex;
     std::condition_variable queueCV;
+	std::atomic<bool> workerBusy(false);
     bool stopping = false;
 
     int serverFd = socket(AF_UNIX, SOCK_STREAM, 0);
@@ -68,8 +70,9 @@ int main() {
 			taskQueue.pop();
 			
 			lock.unlock();
-			
+			workerBusy.store(true);
 			executeTask(task);
+			workerBusy.store(false);
 		}
 	});
 	
@@ -126,18 +129,22 @@ int main() {
 		
 		string response;
 
-		if(!sendMessage(clientFd, "Task Received")) {
-			perror("Failed to send message to client");
-			close(clientFd);
-			return 1;
-		}
-		
 		if(request.type == RequestType::DaemonControl) {
 			if(request.name == "stop") {
 				sendMessage(clientFd, "Daemon shutting down");
 			    close(clientFd);
-				 break;
-    		} else {
+				break;
+    		} else if(request.name == "status") {
+				if(workerBusy.load() && taskQueue.empty())
+					sendMessage(clientFd, "Worker is executing the last task");
+				else if(workerBusy.load() && !taskQueue.empty())
+					sendMessage(clientFd, "Worker is executing, with " + to_string(taskQueue.size()) + " tasks waiting");
+				else if(!workerBusy.load() && !taskQueue.empty())
+					sendMessage(clientFd, "Worker is between tasks or about to begin execution");
+				else if(!workerBusy.load() && taskQueue.empty()) sendMessage(clientFd, "Worker is idle");
+				close(clientFd);
+				continue;
+			} else {
 				cout << "Error: unsupported daemon command" << endl;
 				close(clientFd);
 				continue;
@@ -145,6 +152,12 @@ int main() {
 		} else {
         	std::optional<Task> task = findTask(request.projectPath, request.name);
 		
+ 	       if(!sendMessage(clientFd, "Task Received")) {
+    	        perror("Failed to send message to client");
+        	    close(clientFd);
+           	 	return 1;
+        	}
+
 			if(task.has_value()) {
 	        	task->projectPath = request.projectPath;
 				{

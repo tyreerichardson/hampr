@@ -8,6 +8,7 @@
 #include <sys/un.h>
 #include <unistd.h>
 #include <cstdio>
+#include <cerrno>
 
 using namespace std;
 
@@ -43,10 +44,19 @@ bool sendCommand(const std::string& command, RequestType type) {
 	strncpy(addr.sun_path, "/tmp/hampr.sock", sizeof(addr.sun_path) -1);
 	
 	int conn = ::connect(sockFd, (struct sockaddr *)&addr, sizeof(struct sockaddr_un));
-
 	if(conn == -1) {
-		perror("connect failed");
+		int error = errno;
 		close(sockFd);
+		
+		if(type == RequestType::DaemonControl &&
+			command == "status" && 
+			(error == ENOENT || error == ECONNREFUSED)) {
+			std::cout << "Daemon is not running" << endl;
+			return true;
+		}
+		
+		errno = error;
+		perror("connect failed");
 		return 1;
 	}
 
