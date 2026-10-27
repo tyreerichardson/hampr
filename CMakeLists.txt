@@ -22,6 +22,7 @@ add_executable(hamprd
 	src/task_request.cpp
 	src/config.cpp
 	src/ipc.cpp
+	src/control.cpp
 )
 
 target_include_directories(hamprd PRIVATE

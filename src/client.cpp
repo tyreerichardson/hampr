@@ -18,7 +18,7 @@ bool sendCommand(const std::string& command, RequestType type) {
 		command,
 		std::filesystem::current_path()
 	};
-
+	
 	int sockFd = socket(AF_UNIX, SOCK_STREAM, 0);
 	if(sockFd == -1) {
 		cout << "socket failed to initialize" << endl;
@@ -54,16 +54,16 @@ bool sendCommand(const std::string& command, RequestType type) {
 			std::cout << "Daemon is not running" << endl;
 			return true;
 		}
-		
+
 		errno = error;
 		perror("connect failed");
 		return 1;
 	}
 
 	cout << "Connected to Hampr server!" << endl;
-
+	
 	string message = request.serialize();
-
+	
 	if(!sendMessage(sockFd, message)) {
 		perror("Failed to send task request");
 		close(sockFd);

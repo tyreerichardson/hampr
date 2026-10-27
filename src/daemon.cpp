@@ -3,6 +3,8 @@
 #include "request_type.hpp"
 #include "config.hpp"
 #include "ipc.hpp"
+#include "daemon_state.hpp"
+#include "control.hpp"
 
 #include <iostream>
 #include <sys/socket.h>
@@ -20,12 +22,8 @@ using namespace std;
 
 
 int main() {
-
-    queue<Task> taskQueue;
-    std::mutex queueMutex;
-    std::condition_variable queueCV;
-	std::atomic<bool> workerBusy(false);
-    bool stopping = false;
+	
+	DaemonState state;
 
     int serverFd = socket(AF_UNIX, SOCK_STREAM, 0);
 	if(serverFd == -1) {
@@ -56,23 +54,23 @@ int main() {
 
 	std::thread worker([&]() {
 		while(true) {
-	        std::unique_lock<std::mutex> lock(queueMutex);
+	        std::unique_lock<std::mutex> lock(state.queueMutex);
 
-        	queueCV.wait(lock, [&]() {
-            	return !taskQueue.empty() || stopping;
+        	state.queueCV.wait(lock, [&]() {
+            	return !state.taskQueue.empty() || state.stopping;
         	});
 			
-			if (stopping && taskQueue.empty()) {
+			if (state.stopping && state.taskQueue.empty()) {
             	break;
         	}
 
-			Task task = taskQueue.front();
-			taskQueue.pop();
+			Task task = state.taskQueue.front();
+			state.taskQueue.pop();
 			
 			lock.unlock();
-			workerBusy.store(true);
+			state.workerBusy.store(true);
 			executeTask(task);
-			workerBusy.store(false);
+			state.workerBusy.store(false);
 		}
 	});
 	
@@ -115,69 +113,41 @@ int main() {
 	
 		TaskRequest request = TaskRequest::deserialize(message);
 		
-		if(request.name.empty() || request.projectPath.empty()) {
-			if(!sendMessage(clientFd, "Task name or path is empty")) {
-				perror("Task name or path is empty");
-				close(clientFd);
-				continue;
-			}
-		}
-		
-	    std::cout << "Name: " << request.name << '\n';
-   		std::cout << "Path: " << request.projectPath << '\n';
+		if(request.type == RequestType::Task) {
+			ControlResult result = handleControl(
+				request,
+				clientFd,
+				state
+			);
 
-		
-		string response;
+			close(clientFd);
 
-		if(request.type == RequestType::DaemonControl) {
-			if(request.name == "stop") {
-				sendMessage(clientFd, "Daemon shutting down");
-			    close(clientFd);
+			if(result == ControlResult::Shutdown) {
 				break;
-    		} else if(request.name == "status") {
-				if(workerBusy.load() && taskQueue.empty())
-					sendMessage(clientFd, "Worker is executing the last task");
-				else if(workerBusy.load() && !taskQueue.empty())
-					sendMessage(clientFd, "Worker is executing, with " + to_string(taskQueue.size()) + " tasks waiting");
-				else if(!workerBusy.load() && !taskQueue.empty())
-					sendMessage(clientFd, "Worker is between tasks or about to begin execution");
-				else if(!workerBusy.load() && taskQueue.empty()) sendMessage(clientFd, "Worker is idle");
-				close(clientFd);
-				continue;
-			} else {
-				cout << "Error: unsupported daemon command" << endl;
-				close(clientFd);
-				continue;
 			}
 		} else {
-        	std::optional<Task> task = findTask(request.projectPath, request.name);
-		
- 	       if(!sendMessage(clientFd, "Task Received")) {
-    	        perror("Failed to send message to client");
-        	    close(clientFd);
-           	 	return 1;
-        	}
+			ControlResult result = handleControl(
+				request,
+				clientFd,
+				state
+			);
 
-			if(task.has_value()) {
-	        	task->projectPath = request.projectPath;
-				{
-					std::lock_guard<std::mutex> guard(queueMutex);
-					taskQueue.push(*task);
-				}
-				queueCV.notify_one();
+			close(clientFd);
+
+			if(result == ControlResult::Shutdown) {
+				break;
 			}
-		}
+		}		
 
-		close(clientFd);
 	}
 
 	//Shutdown logic
     {
-       	std::lock_guard<std::mutex> guard(queueMutex);
-    	stopping = true;
+       	std::lock_guard<std::mutex> guard(state.queueMutex);
+    	state.stopping = true;
     }
 
-   	queueCV.notify_one();
+   	state.queueCV.notify_one();
 	worker.join();	
 	
 	cout << "Socket created successfully!" << endl;

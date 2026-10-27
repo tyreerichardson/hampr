@@ -2,5 +2,6 @@
 
 enum class RequestType {
 	Task,
+	QueueControl,
 	DaemonControl
 };

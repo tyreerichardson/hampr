@@ -43,6 +43,16 @@ int main(int argc, char* argv[]) {
 			cout << "Error: missing action" << endl;
 			return 1;
 		}
+	} else if(command == "queue") {
+		type = RequestType::QueueControl;
+		if(argc == 3) command = argv[2];
+		else if(argc > 3) {
+			cout << "Error: too many arguments" << endl;
+			return 1;
+		} else {
+			cout << "Error: missing action" << endl;
+			return 1;
+		}
 	}
 
 	sendCommand(command, type);	
