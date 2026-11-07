@@ -73,7 +73,8 @@ bool sendCommand(const std::string& command, RequestType type) {
 	string response;
 
 	if(!receiveMessage(sockFd, response)) {
-		perror("Failed to receive daemon response");
+		//perror("Failed to receive daemon response");
+		std::cerr << "Failed to receive daemon response\n";
 		close(sockFd);
 		return 1;
 	}

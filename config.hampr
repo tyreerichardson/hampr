@@ -2,3 +2,7 @@ build=cmake -S . -B build;cmake --build build
 test=ctest --test-dir build
 run=./build/socket-server
 wait=sleep 30s
+first=echo "FIRST START"; sleep 3; echo "FIRST END"
+second=echo "SECOND START"; sleep 2; echo "SECOND END"
+third=echo "THIRD START"; sleep 1; echo "THIRD END"
+longtask=echo "START"; sleep 10; echo "FINISHED"

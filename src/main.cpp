@@ -14,6 +14,7 @@
 #include <sys/un.h>
 #include <unistd.h>
 #include <cstdio>
+#include <cstdlib>
 
 using namespace std;
 
@@ -55,6 +56,5 @@ int main(int argc, char* argv[]) {
 		}
 	}
 
-	sendCommand(command, type);	
-	return 0;
+	return sendCommand(command, type) ? EXIT_FAILURE : EXIT_SUCCESS;
 }
