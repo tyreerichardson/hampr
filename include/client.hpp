@@ -4,4 +4,4 @@
 
 #include <string>
 
-bool sendCommand(const std::string& command, RequestType type);
+bool sendCommand(const std::string& command, RequestType type, const std::string& socketPath = "/tmp/hampr.sock");

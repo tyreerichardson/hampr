@@ -12,7 +12,7 @@
 
 using namespace std;
 
-bool sendCommand(const std::string& command, RequestType type) {
+bool sendCommand(const std::string& command, RequestType type, const std::string& socketPath) {
 	TaskRequest request = {
 		type,
 		command,
@@ -41,7 +41,7 @@ bool sendCommand(const std::string& command, RequestType type) {
 	
 	sockaddr_un addr{};
 	addr.sun_family = AF_UNIX;
-	strncpy(addr.sun_path, "/tmp/hampr.sock", sizeof(addr.sun_path) -1);
+	strncpy(addr.sun_path, socketPath.c_str(), sizeof(addr.sun_path) -1);
 	
 	int conn = ::connect(sockFd, (struct sockaddr *)&addr, sizeof(struct sockaddr_un));
 	if(conn == -1) {
